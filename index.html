@@ -49,13 +49,13 @@
 
 	<canvas id="graphicCanvas" width="300" height="300"></canvas>
 
-	<label for="volSlider">Volume: <span id="volValue">-20</span> dB</label><br>
-	<input type="range" id="volSlider" min="-80" max="0" value="-20">
+	<label for="volSlider">Volume: <span id="volValue">-10</span> dB</label><br>
+	<input type="range" id="volSlider" min="-80" max="0" value="-10">
 
 	<label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
 	<input type="range" id="angleSlider" min="-360" max="360" value="0">
 
-	<footer style="margin-top: 30px; color: #303030;">Version: rotational</footer>
+	<footer style="margin-top: 30px; color: #303030;">Version: housed</footer>
 
 	<script>
 		// Constants
@@ -72,7 +72,7 @@
 
 		// App Data
 		let facingRad = 0;
-		let listenRad = 80 * Deg2Rad;
+		let listenRad = 90 * Deg2Rad;
 		let sources = [];
 
 		const startButton = document.getElementById('startButton');
@@ -120,14 +120,18 @@
 			audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 			masterGain = audioCtx.createGain();
-			masterGain.gain.value = 0.01;
+			masterGain.gain.value = dbToLin(-10);
 			masterGain.connect(audioCtx.destination);
 
-			addSource(392.00, +1, +0, '#3498DB');
-			addSource(466.16, -1, +0, '#BF922A');
-			addSource(622.25, +0, -1, '#43A047');
+			addDataSource("audio/fridge.opus", +1, +0, '#3498DB')
+			addDataSource("audio/fire.opus", +0, +1, '#c45454')
+			addDataSource("audio/clock.opus", -1, +0, '#bf922a')
+			addDataSource("audio/garden.opus", +0, -1, '#43a047')
+			// addSawSource(392.00, +1, +0, '#3498DB');
+			// addSawSource(466.16, -1, +0, '#BF922A');
+			// addSawSource(622.25, +0, -1, '#43A047');
 
-			function addSource(freq, x, y, color) {
+			function addSawSource(freq, x, y, color) {
 				// Create Source Wave
 				let oscillator = audioCtx.createOscillator();
 				oscillator.type = 'sawtooth';
@@ -160,7 +164,42 @@
 
 				oscillator.start();
 
-				sources.push({ pan: panner, osc: oscillator, gain: gain, filt: filter, color: color });
+				sources.push({ pan: panner, gain: gain, color: color });
+			}
+
+			async function addDataSource(url, x, y, color) {
+				// Fetch Source
+				let response = await fetch(url);
+				let arrayBuffer = await response.arrayBuffer();
+				let audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+				// Create Buffer Source
+				let dataSource = audioCtx.createBufferSource();
+				dataSource.buffer = audioBuffer;
+				dataSource.loop = true; // Optional: loop the audio
+
+				// Create Volume Gain
+				let gain = audioCtx.createGain();
+				gain.gain.value = 1;
+
+				// Create HRTF Panner
+				let panner = audioCtx.createPanner();
+				panner.panningModel = 'HRTF';
+				panner.distanceModel = 'inverse';
+
+				// Set Position
+				panner.positionX.setValueAtTime(x, audioCtx.currentTime);
+				panner.positionY.setValueAtTime(0, audioCtx.currentTime);
+				panner.positionZ.setValueAtTime(-y, audioCtx.currentTime);
+
+				// Chain Nodes
+				dataSource.connect(gain);
+				gain.connect(panner);
+				panner.connect(masterGain);
+
+				dataSource.start();
+
+				sources.push({ pan: panner, gain: gain, color: color });
 			}
 		}
 
@@ -220,11 +259,12 @@
 
 				// Dot for angle & degrees away from listen dir
 				const dot = nx * dirX + ny * dirY;
-				const maxDot = Math.cos(listenRad * 0.25);
-				const t = Math.min(1, Math.max(0, dot) / maxDot); // 0 == exactly facingRad, 1 == at least listenRad of difference
+				const minDot = Math.cos(listenRad * 0.5);
+				const t = Math.min(1, Math.max(0, dot - minDot) / (1 - minDot)); // 0 == exactly facingRad, 1 == at least listenRad of difference
 				const s = 1 - t;
+				const pwr = 1 - s * s * s * s;
 
-				src.gain.gain.setValueAtTime(t, audioCtx.currentTime);
+				src.gain.gain.setValueAtTime(pwr, audioCtx.currentTime);
 			});
 		}
 
