@@ -185,7 +185,7 @@
 			const alpha = event.alpha ? event.alpha * (Math.PI / 180) : 0;
 			const beta = event.beta ? event.beta * (Math.PI / 180) : 0;
 			const gamma = event.gamma ? event.gamma * (Math.PI / 180) : 0;
-			updateListenAngle(alpha);
+			updateListenAngle(-alpha);
 		}
 
 		function loop() {
@@ -303,7 +303,7 @@
 			facingRad = angleRad;
 			const x = Math.sin(facingRad);
 			const y = 0;
-			const z = Math.cos(facingRad);
+			const z = -Math.cos(facingRad);
 			updateListenDir(x, y, z);
 		}
 
