@@ -55,7 +55,7 @@
 	<label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
 	<input type="range" id="angleSlider" min="-360" max="360" value="0">
 
-	<footer style="margin-top: 30px; color: #303030;">Version: augmented</footer>
+	<footer style="margin-top: 30px; color: #303030;">Version: rotational</footer>
 
 	<script>
 		// Constants
@@ -238,11 +238,21 @@
 			ctx.fillStyle = '#2c3e50';
 			ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+			// Orientation
+			const m00 = Math.cos(facingRad);
+			const m01 = Math.sin(facingRad);
+			const m10 = -m01;
+			const m11 = m00;
+			function transform(x, y) {
+				return {
+					x: cx + (x * m00 + y * m01) * scale,
+					y: cy + (x * m10 + y * m11) * scale
+				};
+			}
+
 			// Draw Listening Slice
-			const N = sources.length;
-			const sliceAngle = (2 * Math.PI) / N;
 			{
-				const startAngle = baseOrientation + facingRad - 0.5 * listenRad;
+				const startAngle = baseOrientation - 0.5 * listenRad;
 				const endAngle = startAngle + listenRad;
 
 				ctx.beginPath();
@@ -258,8 +268,9 @@
 
 			// Draw Sources
 			sources.forEach(src => {
-				const x = cx + (src.pan.positionX.value * scale);
-				const y = cy + (src.pan.positionZ.value * scale);
+				const { x, y } = transform(
+					src.pan.positionX.value,
+					src.pan.positionZ.value);
 				const vol = src.gain.gain.value;
 
 				// Volume
