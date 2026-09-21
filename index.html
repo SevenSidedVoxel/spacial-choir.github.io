@@ -55,7 +55,7 @@
 	<label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
 	<input type="range" id="angleSlider" min="-360" max="360" value="0">
 
-	<footer style="margin-top: 30px; color: #303030;">Version: angle linked</footer>
+	<footer style="margin-top: 30px; color: #303030;">Version: angle flip</footer>
 
 	<script>
 		// Constants
@@ -184,7 +184,7 @@
 			const alpha = event.alpha ? event.alpha * (Math.PI / 180) : 0;
 			const beta = event.beta ? event.beta * (Math.PI / 180) : 0;
 			const gamma = event.gamma ? event.gamma * (Math.PI / 180) : 0;
-			updateListenAngle(alpha);
+			updateListenAngle(-alpha);
 		}
 
 		function loop() {
