@@ -55,7 +55,7 @@
 	<label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
 	<input type="range" id="angleSlider" min="-360" max="360" value="0">
 
-	<footer style="margin-top: 30px; color: #303030;">Version: housed</footer>
+	<footer style="margin-top: 30px; color: #303030;">Version: aligned</footer>
 
 	<script>
 		// Constants
@@ -65,6 +65,7 @@
 		// Audio
 		let audioCtx;
 		let masterGain;
+		let alignNoiseBuffer;
 
 		// Graphics
 		let canvas;
@@ -123,13 +124,21 @@
 			masterGain.gain.value = dbToLin(-10);
 			masterGain.connect(audioCtx.destination);
 
-			addDataSource("audio/fridge.opus", +1, +0, '#3498DB')
-			addDataSource("audio/fire.opus", +0, +1, '#c45454')
-			addDataSource("audio/clock.opus", -1, +0, '#bf922a')
-			addDataSource("audio/garden.opus", +0, -1, '#43a047')
+			addDataSource("audio/fridge.opus", +1, +0, '#3498DB');
+			addDataSource("audio/fire.opus", +0, +1, '#c45454');
+			addDataSource("audio/clock.opus", -1, +0, '#bf922a');
+			addDataSource("audio/garden.opus", +0, -1, '#43a047');
 			// addSawSource(392.00, +1, +0, '#3498DB');
 			// addSawSource(466.16, -1, +0, '#BF922A');
 			// addSawSource(622.25, +0, -1, '#43A047');
+
+			setupAlignNoise();
+			async function setupAlignNoise() {
+				let response = await fetch("audio/align.opus");
+				let arrayBuffer = await response.arrayBuffer();
+				let audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+				alignNoiseBuffer = audioBuffer;
+			}
 
 			function addSawSource(freq, x, y, color) {
 				// Create Source Wave
@@ -268,6 +277,47 @@
 			});
 		}
 
+		let lastAlignRad = 0;
+		const alignThresholdRad = 3 * Deg2Rad;
+		const alignThreshold = Math.cos(alignThresholdRad);
+		async function playAlignNoise() {
+			if (Math.abs(facingRad - lastAlignRad) < alignThresholdRad)
+				return; // already played a noise for this alignment
+			lastAlignRad = facingRad;
+
+			let oneshot = audioCtx.createBufferSource();
+			oneshot.buffer = alignNoiseBuffer;
+			oneshot.connect(masterGain);
+			oneshot.start();
+		}
+
+		function checkSceneAlignment() {
+			if (Math.abs(facingRad - lastAlignRad) > 10 * alignThresholdRad)
+				lastAlignRad = 9999;
+
+			var rad = baseOrientation + facingRad;
+			const dirX = Math.cos(rad);
+			const dirY = Math.sin(rad);
+			sources.forEach(src => {
+				const x = src.pan.positionX.value;
+				const y = src.pan.positionZ.value;
+				if (x == 0 && y == 0)
+					return; // source is at origin
+
+				// Normalize direction
+				const l = 1.0 / Math.hypot(x, y);
+				const nx = x * l;
+				const ny = y * l;
+
+				// Dot for angle & degrees away from listen dir
+				const dot = nx * dirX + ny * dirY;
+				if (dot > alignThreshold) {
+					playAlignNoise();
+					return;
+				}
+			});
+		}
+
 		function draw() {
 			update();
 
@@ -356,6 +406,7 @@
 			const y = 0;
 			const z = -Math.cos(facingRad);
 			updateListenDir(x, y, z);
+			checkSceneAlignment();
 		}
 
 		function dbToLin(db) {
