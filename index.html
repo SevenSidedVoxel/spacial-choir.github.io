@@ -280,7 +280,7 @@
 		let lastAlignRad = 0;
 		const alignThresholdRad = 3 * Deg2Rad;
 		const alignThreshold = Math.cos(alignThresholdRad);
-		async function playAlignNoise() {
+		function playAlignNoise() {
 			if (Math.abs(facingRad - lastAlignRad) < alignThresholdRad)
 				return; // already played a noise for this alignment
 			lastAlignRad = facingRad;
@@ -289,11 +289,14 @@
 			oneshot.buffer = alignNoiseBuffer;
 			oneshot.connect(masterGain);
 			oneshot.start();
+			// console.log(`align at ${lastAlignRad * Rad2Deg}`);
 		}
 
 		function checkSceneAlignment() {
-			if (Math.abs(facingRad - lastAlignRad) > 10 * alignThresholdRad)
+			if (lastAlignRad != 9999 && Math.abs(facingRad - lastAlignRad) > 10 * alignThresholdRad) {
+				// console.log(`clear align at ${lastAlignRad * Rad2Deg} for ${facingRad * Rad2Deg}`);
 				lastAlignRad = 9999;
+			}
 
 			var rad = baseOrientation + facingRad;
 			const dirX = Math.cos(rad);
