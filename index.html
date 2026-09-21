@@ -2,221 +2,308 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gyroscope HRTF Spatializer</title>
-    <style>
-        body {
-            font-family: system-ui, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background: #121212;
-            color: #ffffff;
-        }
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Gyroscope HRTF Spatializer</title>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			height: 100vh;
+			margin: 0;
+			background: #121212;
+			color: #ffffff;
+		}
 
-        button {
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: white;
-            background: #007bff;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+		button {
+			padding: 15px 30px;
+			font-size: 1.2rem;
+			font-weight: bold;
+			color: white;
+			background: #007bff;
+			border: none;
+			border-radius: 8px;
+			cursor: pointer;
+			transition: background 0.2s;
+		}
 
-        button:hover {
-            background: #0056b3;
-        }
+		button:hover {
+			background: #0056b3;
+		}
 
-        #status {
-            margin-top: 20px;
-            color: #aaa;
-            text-align: center;
-        }
-    </style>
+		#status {
+			margin-top: 20px;
+			color: #aaa;
+			text-align: center;
+		}
+	</style>
 </head>
 
 <body>
 
-    <button id="startButton">Start Audio & Enable Tracking</button>
-    <div id="status">Put on headphones and click Start.</div>
+	<button id="startButton">Start Audio & Enable Tracking</button>
+	<div id="status">Put on headphones and click Start.</div>
 
-    <canvas id="graphicCanvas" width="300" height="300"></canvas>
+	<canvas id="graphicCanvas" width="300" height="300"></canvas>
 
-    <label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
-    <input type="range" id="angleSlider" min="-360" max="360" value="0">
+	<label for="volSlider">Volume: <span id="volValue">-20</span> dB</label><br>
+	<input type="range" id="volSlider" min="-80" max="0" value="-20">
 
-    <script>
-        // Constants
-        const Rad2Deg = 180 / Math.PI;
-        const Deg2Rad = Math.PI / 180;
+	<label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
+	<input type="range" id="angleSlider" min="-360" max="360" value="0">
 
-        // Context Data
-        let audioCtx;
-        let panner;
-        let oscillator;
-        let canvas;
-        let ctx;
+	<script>
+		// Constants
+		const Rad2Deg = 180 / Math.PI;
+		const Deg2Rad = Math.PI / 180;
 
-        // App Data
-        let facingRad = 0;
+		// Audio
+		let audioCtx;
+		let masterGain;
 
-        const startButton = document.getElementById('startButton');
-        const statusDiv = document.getElementById('status');
-        startButton.addEventListener('click', async () => {
-            // 1. Initialize Audio
-            if (!audioCtx) {
-                initAudio();
-            }
+		// Graphics
+		let canvas;
+		let ctx;
 
-            // 2. Request Gyroscope Permissions
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try {
-                    const permissionState = await DeviceOrientationEvent.requestPermission();
-                    if (permissionState === 'granted') {
-                        window.addEventListener('deviceorientation', handleOrientation);
-                        statusDiv.innerText = "Tracking active! Rotate your phone.";
-                        startButton.style.display = 'none';
-                    } else {
-                        statusDiv.innerText = "Permission to access sensors was denied.";
-                    }
-                } catch (error) {
-                    console.error(error);
-                    statusDiv.innerText = "Error requesting sensor permissions.";
-                }
-            } else {
-                // Fallback for browsers that don't require explicit permissions (most Android/Desktops)
-                window.addEventListener('deviceorientation', handleOrientation);
-                statusDiv.innerText = "Tracking active! Rotate your phone.";
-                startButton.style.display = 'none';
-            }
+		// App Data
+		let facingRad = 0;
+		let listenRad = 80 * Deg2Rad;
+		let sources = [];
 
-            // 3. Setup Graphics
-            if (!ctx) {
-                canvas = document.getElementById('graphicCanvas');
-                ctx = canvas.getContext('2d');
-                canvas.style.display = 'show';
-                requestAnimationFrame(draw);
-            }
-        });
+		const startButton = document.getElementById('startButton');
+		const statusDiv = document.getElementById('status');
+		startButton.addEventListener('click', async () => {
+			// 1. Initialize Audio
+			if (!audioCtx) {
+				initAudio();
+			}
 
-        function initAudio() {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+			// 2. Request Gyroscope Permissions
+			if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+				try {
+					const permissionState = await DeviceOrientationEvent.requestPermission();
+					if (permissionState === 'granted') {
+						window.addEventListener('deviceorientation', handleOrientation);
+						statusDiv.innerText = "Tracking active! Rotate your phone.";
+						startButton.style.display = 'none';
+					} else {
+						statusDiv.innerText = "Permission to access sensors was denied.";
+					}
+				} catch (error) {
+					console.error(error);
+					statusDiv.innerText = "Error requesting sensor permissions.";
+				}
+			} else {
+				// Fallback for browsers that don't require explicit permissions (most Android/Desktops)
+				window.addEventListener('deviceorientation', handleOrientation);
+				statusDiv.innerText = "Tracking active! Rotate your phone.";
+				startButton.style.display = 'none';
+			}
 
-            // Create a continuous synth sound to test space tracking
-            oscillator = audioCtx.createOscillator();
-            oscillator.type = 'sawtooth';
-            oscillator.frequency.setValueAtTime(220, audioCtx.currentTime); // Low A note
+			// 3. Setup Graphics
+			if (!ctx) {
+				canvas = document.getElementById('graphicCanvas');
+				ctx = canvas.getContext('2d');
+				canvas.style.display = 'show';
+				requestAnimationFrame(loop);
+			}
+		});
 
-            gain = audioCtx.createGain();
-            gain.gain.value = 0.01;
+		function initAudio() {
+			audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-            // Create a filter to make the raw sawtooth friendlier to headphones
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(800, audioCtx.currentTime);
+			masterGain = audioCtx.createGain();
+			masterGain.gain.value = 0.01;
+			masterGain.connect(audioCtx.destination);
 
-            // Create the HRTF Panner Node
-            panner = audioCtx.createPanner();
-            panner.panningModel = 'HRTF';
-            panner.distanceModel = 'inverse';
+			addSource(220, +1, 0);
+			addSource(320, -1, 0);
 
-            // Fix the sound source directly in front of the listener's starting frame (Z = -1)
-            panner.positionX.setValueAtTime(0, audioCtx.currentTime);
-            panner.positionY.setValueAtTime(0, audioCtx.currentTime);
-            panner.positionZ.setValueAtTime(-1, audioCtx.currentTime);
+			function addSource(freq, x, y) {
+				// Create Source Wave
+				let oscillator = audioCtx.createOscillator();
+				oscillator.type = 'sawtooth';
+				oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
 
-            // Connect nodes: Synth -> Filter -> Spatial Panner -> Speakers
-            oscillator.connect(gain);
-            gain.connect(filter);
-            filter.connect(panner);
-            panner.connect(audioCtx.destination);
+				// Create Volume Gain
+				let gain = audioCtx.createGain();
+				gain.gain.value = 1;
 
-            oscillator.start();
-        }
+				// Create Filter
+				let filter = audioCtx.createBiquadFilter();
+				filter.type = 'lowpass';
+				filter.frequency.setValueAtTime(800, audioCtx.currentTime);
 
-        function handleOrientation(event) {
-            if (!audioCtx || !panner) return;
+				// Create HRTF Panner
+				let panner = audioCtx.createPanner();
+				panner.panningModel = 'HRTF';
+				panner.distanceModel = 'inverse';
 
-            // alpha: rotation around z-axis (0 to 360 degrees) - compass direction
-            // beta: rotation around x-axis (-180 to 180 degrees) - front-to-back tilt
-            // gamma: rotation around y-axis (-90 to 90 degrees) - left-to-right tilt
-            const alpha = event.alpha ? event.alpha * (Math.PI / 180) : 0;
-            const beta = event.beta ? event.beta * (Math.PI / 180) : 0;
-            const gamma = event.gamma ? event.gamma * (Math.PI / 180) : 0;
+				// Set Position
+				panner.positionX.setValueAtTime(x, audioCtx.currentTime);
+				panner.positionY.setValueAtTime(0, audioCtx.currentTime);
+				panner.positionZ.setValueAtTime(y, audioCtx.currentTime);
 
-            // Calculate the listener's looking vector based on phone rotation
-            // This basic matrix updates the direction your head is facing relative to the sound source
-            const x = Math.sin(alpha) * Math.cos(beta);
-            const y = Math.sin(beta);
-            const z = -Math.cos(alpha) * Math.cos(beta);
-            facingRad = alpha;
+				// Chain Nodes
+				oscillator.connect(gain);
+				gain.connect(filter);
+				filter.connect(panner);
+				panner.connect(masterGain);
 
-            // Update the listener's orientation dynamically
-            if (audioCtx.listener.forwardX) {
-                // Modern Web Audio API standard
-                audioCtx.listener.forwardX.setValueAtTime(x, audioCtx.currentTime);
-                audioCtx.listener.forwardY.setValueAtTime(y, audioCtx.currentTime);
-                audioCtx.listener.forwardZ.setValueAtTime(z, audioCtx.currentTime);
-            } else {
-                // Deprecated fallback for older browsers
-                audioCtx.listener.setOrientation(x, y, z, 0, 1, 0);
-            }
+				oscillator.start();
 
-            statusDiv.innerHTML = `
-                Tracking Active<br>
-                Alpha (Yaw): ${Math.round(event.alpha)}°<br>
-                Beta (Pitch): ${Math.round(event.beta)}°<br>
-                Gamma (Roll): ${Math.round(event.gamma)}°
-            `;
-        }
+				sources.push({ pan: panner, osc: oscillator, gain: gain, filt: filter });
+			}
+		}
 
-        function draw() {
-            const cx = canvas.width / 2;
-            const cy = canvas.height / 2;
-            const radius = 100;
+		function updateListenDir(x, y, z) {
+			if (audioCtx.listener.forwardX) {
+				// Modern Web Audio API standard
+				audioCtx.listener.forwardX.setValueAtTime(x, audioCtx.currentTime);
+				audioCtx.listener.forwardY.setValueAtTime(y, audioCtx.currentTime);
+				audioCtx.listener.forwardZ.setValueAtTime(z, audioCtx.currentTime);
+			} else {
+				// Deprecated fallback for older browsers
+				audioCtx.listener.setOrientation(x, y, z, 0, 1, 0);
+			}
+		}
 
-            ctx.fillStyle = '#2c3e50';
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+		function handleOrientation(event) {
+			if (!audioCtx) return;
 
-            // 1. Draw N slices
-            const N = 5;
-            const baseOrientation = Math.PI / 2;
-            const sliceAngle = (2 * Math.PI) / N;
-            for (let i = 0; i < N; i++) {
-                const startAngle = baseOrientation + facingRad + i * sliceAngle;
-                const endAngle = startAngle + sliceAngle;
+			// alpha: rotation around z-axis (0 to 360 degrees) - compass direction
+			// beta: rotation around x-axis (-180 to 180 degrees) - front-to-back tilt
+			// gamma: rotation around y-axis (-90 to 90 degrees) - left-to-right tilt
+			const alpha = event.alpha ? event.alpha * (Math.PI / 180) : 0;
+			const beta = event.beta ? event.beta * (Math.PI / 180) : 0;
+			const gamma = event.gamma ? event.gamma * (Math.PI / 180) : 0;
+			facingRad = alpha;
 
-                ctx.beginPath();
-                ctx.moveTo(cx, cy);
-                ctx.arc(cx, cy, radius, startAngle, endAngle);
-                ctx.closePath();
+			// Calculate the listener's looking vector based on phone rotation
+			// This basic matrix updates the direction your head is facing relative to the sound source
+			const x = Math.sin(alpha) * Math.cos(beta);
+			const y = Math.sin(beta);
+			const z = -Math.cos(alpha) * Math.cos(beta);
+			updateListenDir(x, y, z);
+		}
 
-                ctx.fillStyle = i % 2 === 0 ? '#e0e0e0' : '#f9f9f9';
-                ctx.fill();
-                ctx.strokeStyle = '#ccc';
-                ctx.stroke();
-            }
+		function loop() {
+			update();
+			draw();
 
-            // Queue next frame
-            requestAnimationFrame(draw);
-        }
+			// Queue next frame
+			requestAnimationFrame(loop);
+		}
 
-        // Slider
-        const angleSlider = document.getElementById('angleSlider');
-        const angleValue = document.getElementById('angleValue');
-        angleSlider.addEventListener('input', (e) => {
-            let facingDeg = parseInt(e.target.value);
-            facingRad = facingDeg * Deg2Rad;
-            angleValue.textContent = facingDeg;
-        });
-    </script>
+		const baseOrientation = -Math.PI / 2;
+		function update() {
+			statusDiv.innerText = '';
+
+			// Apply Source Orientation Deafening
+			var rad = baseOrientation + facingRad;
+			const dirX = Math.cos(rad);
+			const dirY = Math.sin(rad);
+			sources.forEach(src => {
+				const x = src.pan.positionX.value;
+				const y = src.pan.positionZ.value;
+				if (x == 0 && y == 0) {
+					// source is at origin, always playing
+					src.gain.gain.setValueAtTime(1, audioCtx.currentTime);
+					return;
+				}
+
+				// Normalize direction
+				const l = 1.0 / Math.hypot(x, y);
+				const nx = x * l;
+				const ny = y * l;
+
+				// Dot for angle & degrees away from listen dir
+				const dot = nx * dirX + ny * dirY;
+				const maxDot = Math.cos(listenRad * 0.25);
+				const t = Math.min(1, Math.max(0, dot) / maxDot); // 0 == exactly facingRad, 1 == at least listenRad of difference
+				const s = 1 - t;
+
+				src.gain.gain.setValueAtTime(t, audioCtx.currentTime);
+			});
+		}
+
+		function draw() {
+			update();
+
+			const cx = canvas.width / 2;
+			const cy = canvas.height / 2;
+			const scale = 100;
+
+			ctx.fillStyle = '#2c3e50';
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+			// Draw Listening Slice
+			const N = sources.length;
+			const sliceAngle = (2 * Math.PI) / N;
+			{
+				const startAngle = baseOrientation + facingRad - 0.5 * listenRad;
+				const endAngle = startAngle + listenRad;
+
+				ctx.beginPath();
+				ctx.moveTo(cx, cy);
+				ctx.arc(cx, cy, 100, startAngle, endAngle);
+				ctx.closePath();
+
+				ctx.fillStyle = '#e0e0e0';
+				ctx.fill();
+				ctx.strokeStyle = '#ccc';
+				ctx.stroke();
+			}
+
+			// Draw Sources
+			sources.forEach(s => {
+				let x = cx + (s.pan.positionX.value * scale);
+				let y = cy + (s.pan.positionZ.value * scale);
+
+				ctx.beginPath();
+				ctx.arc(x, y, 6, 0, 2 * Math.PI);
+				ctx.fillStyle = '#3498db';
+				ctx.fill();
+				ctx.lineWidth = 2;
+				ctx.strokeStyle = '#fff';
+				ctx.stroke();
+			});
+		}
+
+		// Volume
+		const volSlider = document.getElementById('volSlider');
+		const volValue = document.getElementById('volValue');
+		volSlider.addEventListener('input', (e) => {
+			if (!masterGain) return;
+			let volDB = parseFloat(e.target.value);
+			let volLin = dbToLin(volDB);
+			masterGain.gain.setValueAtTime(volLin, audioCtx.currentTime);
+			volValue.textContent = volDB;
+		});
+
+		// Sliders
+		const angleSlider = document.getElementById('angleSlider');
+		const angleValue = document.getElementById('angleValue');
+		angleSlider.addEventListener('input', (e) => {
+			let facingDeg = parseInt(e.target.value);
+			facingRad = facingDeg * Deg2Rad;
+			angleValue.textContent = facingDeg;
+
+			const x = Math.sin(facingRad);
+			const y = 0;
+			const z = -Math.cos(facingRad);
+			updateListenDir(x, y, z);
+		});
+
+		function dbToLin(db) {
+			if (db <= -80)
+				return 0;
+			return Math.pow(10, db / 10.0);
+		}
+	</script>
 </body>
 
 </html>
