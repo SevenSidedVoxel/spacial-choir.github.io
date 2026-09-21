@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +17,7 @@
             background: #121212;
             color: #ffffff;
         }
+
         button {
             padding: 15px 30px;
             font-size: 1.2rem;
@@ -27,29 +29,53 @@
             cursor: pointer;
             transition: background 0.2s;
         }
-        button:hover { background: #0056b3; }
-        #status { margin-top: 20px; color: #aaa; text-align: center; }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        #status {
+            margin-top: 20px;
+            color: #aaa;
+            text-align: center;
+        }
     </style>
 </head>
+
 <body>
 
     <button id="startButton">Start Audio & Enable Tracking</button>
     <div id="status">Put on headphones and click Start.</div>
 
+    <canvas id="graphicCanvas" width="300" height="300"></canvas>
+
+    <label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
+    <input type="range" id="angleSlider" min="-360" max="360" value="0">
+
     <script>
+        // Constants
+        const Rad2Deg = 180 / Math.PI;
+        const Deg2Rad = Math.PI / 180;
+
+        // Context Data
         let audioCtx;
         let panner;
         let oscillator;
+        let canvas;
+        let ctx;
+
+        // App Data
+        let facingRad = 0;
+
         const startButton = document.getElementById('startButton');
         const statusDiv = document.getElementById('status');
-
         startButton.addEventListener('click', async () => {
-            // 1. Initialize Web Audio API on User Interaction
+            // 1. Initialize Audio
             if (!audioCtx) {
                 initAudio();
             }
 
-            // 2. Request Gyroscope Permissions (Crucial for iOS 13+)
+            // 2. Request Gyroscope Permissions
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 try {
                     const permissionState = await DeviceOrientationEvent.requestPermission();
@@ -70,6 +96,14 @@
                 statusDiv.innerText = "Tracking active! Rotate your phone.";
                 startButton.style.display = 'none';
             }
+
+            // 3. Setup Graphics
+            if (!ctx) {
+                canvas = document.getElementById('graphicCanvas');
+                ctx = canvas.getContext('2d');
+                canvas.style.display = 'show';
+                requestAnimationFrame(draw);
+            }
         });
 
         function initAudio() {
@@ -81,7 +115,7 @@
             oscillator.frequency.setValueAtTime(220, audioCtx.currentTime); // Low A note
 
             gain = audioCtx.createGain();
-            gain.gain.value = 0.1;
+            gain.gain.value = 0.01;
 
             // Create a filter to make the raw sawtooth friendlier to headphones
             const filter = audioCtx.createBiquadFilter();
@@ -92,7 +126,7 @@
             panner = audioCtx.createPanner();
             panner.panningModel = 'HRTF';
             panner.distanceModel = 'inverse';
-            
+
             // Fix the sound source directly in front of the listener's starting frame (Z = -1)
             panner.positionX.setValueAtTime(0, audioCtx.currentTime);
             panner.positionY.setValueAtTime(0, audioCtx.currentTime);
@@ -122,6 +156,7 @@
             const x = Math.sin(alpha) * Math.cos(beta);
             const y = Math.sin(beta);
             const z = -Math.cos(alpha) * Math.cos(beta);
+            facingRad = alpha;
 
             // Update the listener's orientation dynamically
             if (audioCtx.listener.forwardX) {
@@ -141,6 +176,47 @@
                 Gamma (Roll): ${Math.round(event.gamma)}°
             `;
         }
+
+        function draw() {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const radius = 100;
+
+            ctx.fillStyle = '#2c3e50';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw N slices
+            const N = 5;
+            const baseOrientation = Math.PI / 2;
+            const sliceAngle = (2 * Math.PI) / N;
+            for (let i = 0; i < N; i++) {
+                const startAngle = baseOrientation + facingRad + i * sliceAngle;
+                const endAngle = startAngle + sliceAngle;
+
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, radius, startAngle, endAngle);
+                ctx.closePath();
+
+                ctx.fillStyle = i % 2 === 0 ? '#e0e0e0' : '#f9f9f9';
+                ctx.fill();
+                ctx.strokeStyle = '#ccc';
+                ctx.stroke();
+            }
+
+            // Queue next frame
+            requestAnimationFrame(draw);
+        }
+
+        // Slider
+        const angleSlider = document.getElementById('angleSlider');
+        const angleValue = document.getElementById('angleValue');
+        angleSlider.addEventListener('input', (e) => {
+            let facingDeg = parseInt(e.target.value);
+            facingRad = facingDeg * Deg2Rad;
+            angleValue.textContent = facingDeg;
+        });
     </script>
 </body>
+
 </html>
