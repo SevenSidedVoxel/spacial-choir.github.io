@@ -55,7 +55,7 @@
 	<label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
 	<input type="range" id="angleSlider" min="-360" max="360" value="0">
 
-	<footer style="margin-top: 30px; color: #303030;">Version: 2D orient</footer>
+	<footer style="margin-top: 30px; color: #303030;">Version: angle linked</footer>
 
 	<script>
 		// Constants
@@ -184,19 +184,7 @@
 			const alpha = event.alpha ? event.alpha * (Math.PI / 180) : 0;
 			const beta = event.beta ? event.beta * (Math.PI / 180) : 0;
 			const gamma = event.gamma ? event.gamma * (Math.PI / 180) : 0;
-			facingRad = alpha;
-
-			// Update the listener direction
-			const x = Math.sin(alpha);
-			const y = 0;
-			const z = -Math.cos(alpha);
-			updateListenDir(x, y, z);
-
-			// 3D calc
-			// const x = Math.sin(alpha) * Math.cos(beta);
-			// const y = Math.sin(beta);
-			// const z = -Math.cos(alpha) * Math.cos(beta);
-			// updateListenDir(x, y, z);
+			updateListenAngle(alpha);
 		}
 
 		function loop() {
@@ -275,7 +263,7 @@
 
 				// Volume
 				ctx.beginPath();
-				ctx.arc(x, y, 6 + 6 * vol, 0, 2 * Math.PI);
+				ctx.arc(x, y, 6 + 12 * vol, 0, 2 * Math.PI);
 				ctx.fillStyle = lightenHex(src.color, 0.1);
 				ctx.fill();
 
@@ -306,14 +294,17 @@
 		const angleValue = document.getElementById('angleValue');
 		angleSlider.addEventListener('input', (e) => {
 			let facingDeg = parseInt(e.target.value);
-			facingRad = facingDeg * Deg2Rad;
-			angleValue.textContent = facingDeg;
+			updateListenAngle(facingDeg * Deg2Rad);
+		});
+		function updateListenAngle(angleRad) {
+			angleValue.textContent = Math.round(angleRad * Rad2Deg);
 
+			facingRad = angleRad;
 			const x = Math.sin(facingRad);
 			const y = 0;
 			const z = -Math.cos(facingRad);
 			updateListenDir(x, y, z);
-		});
+		}
 
 		function dbToLin(db) {
 			if (db <= -80)
