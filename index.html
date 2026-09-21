@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gyroscope HRTF Spatializer</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: #121212;
+            color: #ffffff;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            background: #007bff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0056b3; }
+        #status { margin-top: 20px; color: #aaa; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <button id="startButton">Start Audio & Enable Tracking</button>
+    <div id="status">Put on headphones and click Start.</div>
+
+    <script>
+        let audioCtx;
+        let panner;
+        let oscillator;
+        const startButton = document.getElementById('startButton');
+        const statusDiv = document.getElementById('status');
+
+        startButton.addEventListener('click', async () => {
+            // 1. Initialize Web Audio API on User Interaction
+            if (!audioCtx) {
+                initAudio();
+            }
+
+            // 2. Request Gyroscope Permissions (Crucial for iOS 13+)
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const permissionState = await DeviceOrientationEvent.requestPermission();
+                    if (permissionState === 'granted') {
+                        window.addEventListener('deviceorientation', handleOrientation);
+                        statusDiv.innerText = "Tracking active! Rotate your phone.";
+                        startButton.style.display = 'none';
+                    } else {
+                        statusDiv.innerText = "Permission to access sensors was denied.";
+                    }
+                } catch (error) {
+                    console.error(error);
+                    statusDiv.innerText = "Error requesting sensor permissions.";
+                }
+            } else {
+                // Fallback for browsers that don't require explicit permissions (most Android/Desktops)
+                window.addEventListener('deviceorientation', handleOrientation);
+                statusDiv.innerText = "Tracking active! Rotate your phone.";
+                startButton.style.display = 'none';
+            }
+        });
+
+        function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Create a continuous synth sound to test space tracking
+            oscillator = audioCtx.createOscillator();
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(220, audioCtx.currentTime); // Low A note
+
+            gain = audioCtx.createGain();
+            gain.gain.value = 0.1;
+
+            // Create a filter to make the raw sawtooth friendlier to headphones
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(800, audioCtx.currentTime);
+
+            // Create the HRTF Panner Node
+            panner = audioCtx.createPanner();
+            panner.panningModel = 'HRTF';
+            panner.distanceModel = 'inverse';
+            
+            // Fix the sound source directly in front of the listener's starting frame (Z = -1)
+            panner.positionX.setValueAtTime(0, audioCtx.currentTime);
+            panner.positionY.setValueAtTime(0, audioCtx.currentTime);
+            panner.positionZ.setValueAtTime(-1, audioCtx.currentTime);
+
+            // Connect nodes: Synth -> Filter -> Spatial Panner -> Speakers
+            oscillator.connect(gain);
+            gain.connect(filter);
+            filter.connect(panner);
+            panner.connect(audioCtx.destination);
+
+            oscillator.start();
+        }
+
+        function handleOrientation(event) {
+            if (!audioCtx || !panner) return;
+
+            // alpha: rotation around z-axis (0 to 360 degrees) - compass direction
+            // beta: rotation around x-axis (-180 to 180 degrees) - front-to-back tilt
+            // gamma: rotation around y-axis (-90 to 90 degrees) - left-to-right tilt
+            const alpha = event.alpha ? event.alpha * (Math.PI / 180) : 0;
+            const beta = event.beta ? event.beta * (Math.PI / 180) : 0;
+            const gamma = event.gamma ? event.gamma * (Math.PI / 180) : 0;
+
+            // Calculate the listener's looking vector based on phone rotation
+            // This basic matrix updates the direction your head is facing relative to the sound source
+            const x = Math.sin(alpha) * Math.cos(beta);
+            const y = Math.sin(beta);
+            const z = -Math.cos(alpha) * Math.cos(beta);
+
+            // Update the listener's orientation dynamically
+            if (audioCtx.listener.forwardX) {
+                // Modern Web Audio API standard
+                audioCtx.listener.forwardX.setValueAtTime(x, audioCtx.currentTime);
+                audioCtx.listener.forwardY.setValueAtTime(y, audioCtx.currentTime);
+                audioCtx.listener.forwardZ.setValueAtTime(z, audioCtx.currentTime);
+            } else {
+                // Deprecated fallback for older browsers
+                audioCtx.listener.setOrientation(x, y, z, 0, 1, 0);
+            }
+
+            statusDiv.innerHTML = `
+                Tracking Active<br>
+                Alpha (Yaw): ${Math.round(event.alpha)}°<br>
+                Beta (Pitch): ${Math.round(event.beta)}°<br>
+                Gamma (Roll): ${Math.round(event.gamma)}°
+            `;
+        }
+    </script>
+</body>
+</html>
