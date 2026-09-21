@@ -55,7 +55,7 @@
 	<label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
 	<input type="range" id="angleSlider" min="-360" max="360" value="0">
 
-	<footer style="margin-top: 30px; color: #303030;">Version: angle flip</footer>
+	<footer style="margin-top: 30px; color: #303030;">Version: augmented</footer>
 
 	<script>
 		// Constants
@@ -123,8 +123,9 @@
 			masterGain.gain.value = 0.01;
 			masterGain.connect(audioCtx.destination);
 
-			addSource(220, +1, 0, '#3498DB');
-			addSource(320, -1, 0, '#BF922A');
+			addSource(392.00, +1, +0, '#3498DB');
+			addSource(466.16, -1, +0, '#BF922A');
+			addSource(622.25, +0, -1, '#43A047');
 
 			function addSource(freq, x, y, color) {
 				// Create Source Wave
@@ -184,7 +185,7 @@
 			const alpha = event.alpha ? event.alpha * (Math.PI / 180) : 0;
 			const beta = event.beta ? event.beta * (Math.PI / 180) : 0;
 			const gamma = event.gamma ? event.gamma * (Math.PI / 180) : 0;
-			updateListenAngle(-alpha);
+			updateListenAngle(alpha);
 		}
 
 		function loop() {
@@ -302,7 +303,7 @@
 			facingRad = angleRad;
 			const x = Math.sin(facingRad);
 			const y = 0;
-			const z = -Math.cos(facingRad);
+			const z = Math.cos(facingRad);
 			updateListenDir(x, y, z);
 		}
 
