@@ -182,12 +182,17 @@
 			const gamma = event.gamma ? event.gamma * (Math.PI / 180) : 0;
 			facingRad = alpha;
 
-			// Calculate the listener's looking vector based on phone rotation
-			// This basic matrix updates the direction your head is facing relative to the sound source
-			const x = Math.sin(alpha) * Math.cos(beta);
-			const y = Math.sin(beta);
-			const z = -Math.cos(alpha) * Math.cos(beta);
+			// Update the listener direction
+			const x = Math.sin(alpha);
+			const y = 0;
+			const z = -Math.cos(alpha);
 			updateListenDir(x, y, z);
+
+			// 3D calc
+			// const x = Math.sin(alpha) * Math.cos(beta);
+			// const y = Math.sin(beta);
+			// const z = -Math.cos(alpha) * Math.cos(beta);
+			// updateListenDir(x, y, z);
 		}
 
 		function loop() {
