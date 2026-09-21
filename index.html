@@ -44,8 +44,8 @@
 
 <body>
 
-	<button id="startButton">Start Audio & Enable Tracking</button>
-	<div id="status">Put on headphones and click Start.</div>
+	<button id="startButton">Enable Tracking & Start</button>
+	<div id="status">Put on headphones and click the button above.</div>
 
 	<canvas id="graphicCanvas" width="300" height="300"></canvas>
 
@@ -54,6 +54,8 @@
 
 	<label for="angleSlider">Facing: <span id="angleValue">0</span>°</label><br>
 	<input type="range" id="angleSlider" min="-360" max="360" value="0">
+
+	<footer style="margin-top: 30px; color: #303030;">Version: 2D orient</footer>
 
 	<script>
 		// Constants
@@ -86,9 +88,7 @@
 				try {
 					const permissionState = await DeviceOrientationEvent.requestPermission();
 					if (permissionState === 'granted') {
-						window.addEventListener('deviceorientation', handleOrientation);
-						statusDiv.innerText = "Tracking active! Rotate your phone.";
-						startButton.style.display = 'none';
+						startTracking();
 					} else {
 						statusDiv.innerText = "Permission to access sensors was denied.";
 					}
@@ -98,8 +98,12 @@
 				}
 			} else {
 				// Fallback for browsers that don't require explicit permissions (most Android/Desktops)
+				startTracking();
+			}
+
+			function startTracking() {
 				window.addEventListener('deviceorientation', handleOrientation);
-				statusDiv.innerText = "Tracking active! Rotate your phone.";
+				statusDiv.innerText = "Tracking active! Spin your chair.";
 				startButton.style.display = 'none';
 			}
 
