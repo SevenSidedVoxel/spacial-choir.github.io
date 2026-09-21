@@ -123,10 +123,10 @@
 			masterGain.gain.value = 0.01;
 			masterGain.connect(audioCtx.destination);
 
-			addSource(220, +1, 0);
-			addSource(320, -1, 0);
+			addSource(220, +1, 0, '#3498DB');
+			addSource(320, -1, 0, '#BF922A');
 
-			function addSource(freq, x, y) {
+			function addSource(freq, x, y, color) {
 				// Create Source Wave
 				let oscillator = audioCtx.createOscillator();
 				oscillator.type = 'sawtooth';
@@ -149,7 +149,7 @@
 				// Set Position
 				panner.positionX.setValueAtTime(x, audioCtx.currentTime);
 				panner.positionY.setValueAtTime(0, audioCtx.currentTime);
-				panner.positionZ.setValueAtTime(y, audioCtx.currentTime);
+				panner.positionZ.setValueAtTime(-y, audioCtx.currentTime);
 
 				// Chain Nodes
 				oscillator.connect(gain);
@@ -159,7 +159,7 @@
 
 				oscillator.start();
 
-				sources.push({ pan: panner, osc: oscillator, gain: gain, filt: filter });
+				sources.push({ pan: panner, osc: oscillator, gain: gain, filt: filter, color: color });
 			}
 		}
 
@@ -268,13 +268,21 @@
 			}
 
 			// Draw Sources
-			sources.forEach(s => {
-				let x = cx + (s.pan.positionX.value * scale);
-				let y = cy + (s.pan.positionZ.value * scale);
+			sources.forEach(src => {
+				const x = cx + (src.pan.positionX.value * scale);
+				const y = cy + (src.pan.positionZ.value * scale);
+				const vol = src.gain.gain.value;
 
+				// Volume
+				ctx.beginPath();
+				ctx.arc(x, y, 6 + 6 * vol, 0, 2 * Math.PI);
+				ctx.fillStyle = lightenHex(src.color, 0.1);
+				ctx.fill();
+
+				// Position
 				ctx.beginPath();
 				ctx.arc(x, y, 6, 0, 2 * Math.PI);
-				ctx.fillStyle = '#3498db';
+				ctx.fillStyle = src.color;
 				ctx.fill();
 				ctx.lineWidth = 2;
 				ctx.strokeStyle = '#fff';
@@ -311,6 +319,24 @@
 			if (db <= -80)
 				return 0;
 			return Math.pow(10, db / 10.0);
+		}
+
+		function lightenHex(hex, percent) {
+			// Remove '#' if present
+			hex = hex.replace(/^#/, '');
+
+			// Parse RGB values
+			let r = parseInt(hex.substring(0, 2), 16);
+			let g = parseInt(hex.substring(2, 4), 16);
+			let b = parseInt(hex.substring(4, 6), 16);
+
+			// Lighten each channel
+			r = Math.min(255, Math.floor(r + (255 - r) * percent));
+			g = Math.min(255, Math.floor(g + (255 - g) * percent));
+			b = Math.min(255, Math.floor(b + (255 - b) * percent));
+
+			// Convert back to hex
+			return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 		}
 	</script>
 </body>
