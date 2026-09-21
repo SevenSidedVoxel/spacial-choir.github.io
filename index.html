@@ -278,7 +278,8 @@
 		}
 
 		let lastAlignRad = 0;
-		const alignThresholdRad = 3 * Deg2Rad;
+		const alignThresholdRad = 10 * Deg2Rad;
+		const unalignThresholdRad = 30 * Deg2Rad;
 		const alignThreshold = Math.cos(alignThresholdRad);
 		function playAlignNoise() {
 			if (Math.abs(facingRad - lastAlignRad) < alignThresholdRad)
@@ -293,7 +294,7 @@
 		}
 
 		function checkSceneAlignment() {
-			if (lastAlignRad != 9999 && Math.abs(facingRad - lastAlignRad) > 10 * alignThresholdRad) {
+			if (lastAlignRad != 9999 && Math.abs(facingRad - lastAlignRad) > unalignThresholdRad) {
 				// console.log(`clear align at ${lastAlignRad * Rad2Deg} for ${facingRad * Rad2Deg}`);
 				lastAlignRad = 9999;
 			}
